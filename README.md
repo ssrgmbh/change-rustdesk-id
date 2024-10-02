@@ -1,4 +1,4 @@
-# RustDesk Configuration Update Script
+# RustDesk ID Update Script
 
 This PowerShell script automates the process of updating the RustDesk ID and password and securely storing the information in Bitwarden.
 
