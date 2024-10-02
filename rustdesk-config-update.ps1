@@ -3,7 +3,7 @@ function Get-RandomAlphanumericString {
     param (
         [int] $length = 12
     )
-    return -join ((65..90) + (97..122) + (48..57) | Get-Random -Count $length | % {[char]$_})
+    return -join ((65..90) + (97..122) + (48..57) | Get-Random -Count $length | ForEach-Object {[char]$_})
 }
 
 # Function to generate random 9-digit number
@@ -34,13 +34,13 @@ function Test-BitwardenCLI {
 # Function to install Bitwarden CLI using winget
 function Install-BitwardenCLI {
     try {
-        Write-Host "Installing Bitwarden CLI..."
+        Write-Verbose "Installing Bitwarden CLI..."
         winget install Bitwarden.CLI
-        Write-Host "Bitwarden CLI installed successfully."
+        Write-Verbose "Bitwarden CLI installed successfully."
         return $true
     }
     catch {
-        Write-Host "Failed to install Bitwarden CLI. Error: $_"
+        Write-Error "Failed to install Bitwarden CLI. Error: $_"
         return $false
     }
 }
@@ -62,21 +62,21 @@ function Save-ToBitwarden {
         [string]$password,
         [string]$serverUrl
     )
-    
+
     # Check if Bitwarden CLI is installed
     if (-not (Test-BitwardenCLI)) {
         if (Read-HostWithDefault "Bitwarden CLI is not installed. Do you want to install it now?") {
             if (-not (Install-BitwardenCLI)) {
-                Write-Host "Unable to proceed without Bitwarden CLI."
+                Write-Error "Unable to proceed without Bitwarden CLI."
                 return
             }
         }
         else {
-            Write-Host "Unable to proceed without Bitwarden CLI."
+            Write-Error "Unable to proceed without Bitwarden CLI."
             return
         }
     }
-    
+
     $currentServerUrl = bw config server
     if ($currentServerUrl) {
         if (Read-HostWithDefault "Current Bitwarden server is set to $currentServerUrl. Do you want to use this server?") {
@@ -93,19 +93,17 @@ function Save-ToBitwarden {
     # Check if already logged in
     $status = bw status | ConvertFrom-Json
     if ($status.status -eq "unauthenticated") {
-        Write-Host "Please log in to Bitwarden..."
+        Write-Verbose "Please log in to Bitwarden..."
         $env:BW_SESSION = (bw login --raw)
     }
     else {
         # Unlock the vault
-        Write-Host "Unlocking Bitwarden vault..."
+        Write-Verbose "Unlocking Bitwarden vault..."
         $env:BW_SESSION = (bw unlock --raw)
-
     }
 
-
     if (-not $env:BW_SESSION) {
-        Write-Host "Failed to unlock Bitwarden vault."
+        Write-Error "Failed to unlock Bitwarden vault."
         return
     }
 
@@ -126,32 +124,35 @@ function Save-ToBitwarden {
     if ($existingItem) {
         # Update existing item
         try {
-            $result = $itemJson | bw encode | bw edit item $existingItem.id
-            Write-Host "Updated existing Bitwarden entry for $hostname"
+            $itemJson | bw encode | bw edit item $existingItem.id
+            Write-Output ""
+            Write-Output "Updated existing Bitwarden entry for $hostname"
         }
         catch {
-            Write-Host "Failed to update Bitwarden entry. Error: $_"
+            Write-Error "Failed to update Bitwarden entry. Error: $_"
         }
     }
     else {
         # Create new item in Bitwarden
         try {
-            $result = $itemJson | bw encode | bw create item
-            Write-Host "Created new Bitwarden entry for $hostname"
+            $itemJson | bw encode | bw create item
+            Write-Output ""
+            Write-Output "Created new Bitwarden entry for $hostname"
         }
         catch {
-            Write-Host "Failed to create Bitwarden entry. Error: $_"
+            Write-Error "Failed to create Bitwarden entry. Error: $_"
         }
     }
 
     # Force a full sync
     try {
-        Write-Host "Performing full sync with Bitwarden..."
+        Write-Verbose "Performing full sync with Bitwarden..."
         bw sync --force
-        Write-Host ""
+        Write-Verbose "Sync completed successfully."
+	Write-Output ""
     }
     catch {
-        Write-Host "Failed to sync with Bitwarden. Error: $_"
+        Write-Error "Failed to sync with Bitwarden. Error: $_"
     }
 
     # Lock the vault
@@ -163,72 +164,72 @@ function Save-ToBitwarden {
 
 # Main script starts here
 if (-not (Test-RustDeskInstalled)) {
-    Write-Host "RustDesk is not installed or not configured properly on this system."
-    Write-Host "Please install RustDesk and run this script again."
+    Write-Error "RustDesk is not installed or not configured properly on this system."
+    Write-Information "Please install RustDesk and run this script again."
     exit
 }
-Write-Host "Stopping RustDesk service..."
+Write-Verbose "Stopping RustDesk service..."
 Stop-Service -Name "RustDesk" -ErrorAction SilentlyContinue
 
-$id = Get-Content C:\Windows\ServiceProfiles\LocalService\AppData\Roaming\RustDesk\config\RustDesk.toml | Select -Index 0
-Write-Host "Current ID: $id"
+$id = Get-Content C:\Windows\ServiceProfiles\LocalService\AppData\Roaming\RustDesk\config\RustDesk.toml | Select-Object -Index 0
+Write-Output "Current ID: $id"
 
 $hostname = hostname
-Write-Host "Hostname: $hostname"
+Write-Output "Hostname: $hostname"
 
 # Prompt user for new ID option
-Write-Host "Choose an option for the new RustDesk ID:"
-Write-Host "1. Use the hostname ($hostname)"
-Write-Host "2. Use a random 9-digit number"
-Write-Host "3. Enter a custom value"
+Write-Output "Choose an option for the new RustDesk ID:"
+Write-Output "1. Use the hostname ($hostname)"
+Write-Output "2. Use a random 9-digit number"
+Write-Output "3. Enter a custom value"
 $idChoice = Read-Host "Enter your choice (1-3)"
 
 switch ($idChoice) {
     "1" { $newIdValue = $hostname }
     "2" { $newIdValue = Get-Random9DigitNumber }
     "3" { $newIdValue = Read-Host "Enter your custom RustDesk ID" }
-    default { 
-        Write-Host "Invalid choice. Using hostname as default."
-        $newIdValue = $hostname 
+    default {
+        Write-Warning "Invalid choice. Using hostname as default."
+        $newIdValue = $hostname
     }
 }
 
 $newId = "id = '$newIdValue'"
-Write-Host "New ID: $newId"
+Write-Output "New ID: $newId"
 
 $filecontent = Get-Content -Path C:\Windows\ServiceProfiles\LocalService\AppData\Roaming\RustDesk\config\RustDesk.toml -Raw
-Write-Host "Current file content:"
-Write-Host $filecontent
+Write-Verbose "Current file content:"
+Write-Verbose $filecontent
 
-Write-Host "Replacing ID..."
+Write-Verbose "Replacing ID..."
 $filecontent = $filecontent.Replace("$id","$newId")
 
-$password = Get-Content C:\Windows\ServiceProfiles\LocalService\AppData\Roaming\RustDesk\config\RustDesk.toml | Select -Index 1
-Write-Host "Current password line: $password"
+$password = Get-Content C:\Windows\ServiceProfiles\LocalService\AppData\Roaming\RustDesk\config\RustDesk.toml | Select-Object -Index 1
+Write-Verbose "Current password line: $password"
 
 $randomPassword = Get-RandomAlphanumericString -length 16
 $newPassword = "password = '$randomPassword'"
-Write-Host "New password line: $newPassword"
+Write-Verbose "New password line: $newPassword"
 
-Write-Host "Replacing password..."
+Write-Verbose "Replacing password..."
 $filecontent = $filecontent.Replace("$password","$newPassword")
 
 $filecontent | Set-Content -Path C:\Windows\ServiceProfiles\LocalService\AppData\Roaming\RustDesk\config\RustDesk.toml
 
-Write-Host "Final file content:"
-Write-Host $filecontent 
+Write-Verbose "Final file content:"
+Write-Verbose $filecontent
 
-Write-Host "Starting RustDesk service..."
+Write-Verbose "Starting RustDesk service..."
 Start-Service -Name "RustDesk" -ErrorAction SilentlyContinue
 
-Write-Host "RustDesk ID has been changed to: $newId"
-Write-Host "RustDesk password has been changed to a random 16-character string."
-Write-Host "New password: $randomPassword"
+Write-Output "RustDesk ID has been changed to: $newId"
+Write-Output "RustDesk password has been changed to a random 16-character string."
+Write-Output "New password: $randomPassword"
 
 # Prompt to save RustDesk info to Bitwarden
 if (Read-HostWithDefault "Do you want to save the RustDesk information to Bitwarden?") {
     Save-ToBitwarden -hostname $hostname -newId $newIdValue -password $randomPassword -serverUrl $serverUrl
 }
 else {
-    Write-Host "RustDesk information not saved to Bitwarden. Please make sure to securely store the ID and password."
+    Write-Warning "RustDesk information not saved to Bitwarden. Please make sure to securely store the ID and password."
 }
