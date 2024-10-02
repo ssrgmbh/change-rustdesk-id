@@ -79,7 +79,7 @@ Contributions to improve the script are welcome. Please follow these steps:
 Distributed under the MIT License. See `LICENSE` file for more information.
 
 ## Acknowledgements
-
+- [This Reddit Comment](https://old.reddit.com/r/rustdesk/comments/140zfl0/any_way_to_set_custom_id/jnftk2t/)
 - [RustDesk](https://rustdesk.com/)
 - [Bitwarden](https://bitwarden.com/)
 - [PowerShell](https://docs.microsoft.com/en-us/powershell/)
