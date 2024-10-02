@@ -84,10 +84,14 @@ function Save-ToBitwarden {
         }
         else {
             $serverUrl = Read-Host "Enter your Bitwarden server URL (e.g., https://bitwarden.example.net)"
+	    bw config server $serverUrl
+     	    Write-Output ""
         }
     }
     else {
         $serverUrl = Read-Host "Enter your Bitwarden server URL (e.g., https://bitwarden.example.net)"
+	bw config server $serverUrl
+     	Write-Output ""
     }
 
     # Check if already logged in
